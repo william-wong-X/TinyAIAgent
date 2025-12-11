@@ -1,0 +1,24 @@
+# python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.log
+
+# vscode
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# model
+llm/models/
+models/
+checkpoints/
+weights/

@@ -1,0 +1,14 @@
+llm:
+  base_url: "http://localhost:8000/v1"
+  model: "qwen3-8b"
+  model_path: "llm/models/Qwen3-8B"
+  temperature: 0.7
+  enable_thinking: true
+  streaming: true
+
+rag:
+  vectorstore_path: "data/vectorstores/chroma_db"
+  top_k: 4
+
+tools:
+  enable_desktop_tools: false
