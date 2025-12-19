@@ -18,6 +18,12 @@ class LLMConfig:
     streaming: bool = True
 
 @dataclass
+class EmbeddingConfig:
+    base_url: str = "http://localhost:8001/v1"
+    model: str = "qwen3-wmbedding-0.6b"
+    model_path: str = "llm/models/Qwen3-Embedding-0.6B"
+
+@dataclass
 class RAGConfig:
     vectorstore_path: str = "data/vectorstores/chroma_db"
     top_k: int = 4
@@ -29,6 +35,7 @@ class ToolsConfig:
 @dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
+    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     rag: RAGConfig = field(default_factory=RAGConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
 

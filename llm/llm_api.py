@@ -14,12 +14,10 @@ import uvicorn
 from utils.utils import get_dir
 from app.config import load_config
 
-parser = argparse.ArgumentParser()
-    
+# ====================== config ======================
+parser = argparse.ArgumentParser()    
 parser.add_argument('-c', '--config', type=str, default="./config/config.yaml", help="Config path")
-
 args = parser.parse_args()
-
 config = load_config(args.config)
 
 # ====================== LLM ======================
@@ -48,11 +46,13 @@ class ChatLLM:
                 local_files_only=True, 
                 trust_remote_code=True
             )
+            self.model.eval()
             print(f"模型加载完成，使用的设备: {self.device}")
         except Exception as e:
             print(f"模型加载失败: {e}")
             raise
     
+    @torch.no_grad()
     def generate(
         self, 
         messages: List[dict], 
@@ -61,6 +61,9 @@ class ChatLLM:
         top_p: float = 0.9,
         enable_thinking: bool = True,
     ) -> str:
+        if not isinstance(messages, list):
+            messages = [messages]
+
         text = self.tokenizer.apply_chat_template(
             messages, 
             tokenize=False, 
@@ -161,7 +164,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="LLM API",
-    description="OpenAI format LLM API",
+    description="OpenAI-style LLM API",
     lifespan=lifespan,
 )
 

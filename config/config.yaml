@@ -6,6 +6,11 @@ llm:
   enable_thinking: true
   streaming: true
 
+embedding:
+  base_url: "http://localhost:8001/v1"
+  model: "qwen3-wmbedding-0.6b"
+  model_path: "llm/models/Qwen3-Embedding-0.6B"
+
 rag:
   vectorstore_path: "data/vectorstores/chroma_db"
   top_k: 4
