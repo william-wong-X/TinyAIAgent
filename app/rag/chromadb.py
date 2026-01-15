@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from typing import Dict, Any, Optional, List
 
+import uuid
 import chromadb
 from chromadb.api.models.Collection import Collection
 
@@ -29,8 +32,7 @@ class ChromaVectorStore(VectorStore):
             raise ValueError("Length of ids and texts must equal")
 
         if ids is None:
-            # 你也可以改成更稳定的：hash(text + metadata) 或 uuid5
-            ids = [f"doc_{i}" for i in range(self.count(), self.count() + len(texts))]
+            ids = [str(uuid.uuid4()) for _ in texts]
         
         embeddings = self.embedding_fn(texts)
 
