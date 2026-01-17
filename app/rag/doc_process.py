@@ -16,7 +16,7 @@ class Chunk:
     text: str
     metadata: Dict[str, Any]
 
-# -----------------config-----------------
+# ----------------- config -----------------
 @dataclass
 class CleanConfig:
     normalize_unicode_nfkc: bool = True
@@ -72,7 +72,7 @@ class PreprocessConfig:
     split: SplitConfig = SplitConfig()
     structure: StructureSplitConfig = StructureSplitConfig()
 
-# -----------------config-----------------
+# ----------------- config -----------------
 
 LoaderFn = Callable[[Path, PreprocessConfig], List[Document]]
 StructureSplitterFn = Callable[[Path, List[Document], PreprocessConfig], List[Document]]
@@ -107,7 +107,7 @@ def normalize_metadata(meta: Dict[str, Any], path: Path) -> Dict[str, Any]:
 
     return m
 
-# -----------------scan-----------------
+# ----------------- scan -----------------
 
 def iter_files(inputs: Sequence[Union[str, Path]], *, recursive: bool = True) -> Iterator[Path]:
     for item in inputs:
@@ -195,7 +195,7 @@ DEFAULT_LOADER_REGISTRY: Dict[str, LoaderFn] = {
     ".json": _load_json
 }
 
-# -----------------clean-----------------
+# ----------------- clean -----------------
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
@@ -236,7 +236,7 @@ def clean_documents(docs: Iterable[Document], config: CleanConfig) -> List[Docum
         out.append(Document(page_content=t, metadata=dict(d.metadata or {})))
     return out
 
-# -----------------chinese-----------------
+# ----------------- chinese -----------------
 
 DEFAULT_SEPARATORS_ZH_AWARE = [
     "\n\n",
@@ -252,7 +252,7 @@ DEFAULT_SEPARATORS_ZH_AWARE = [
     "",
 ]
 
-# -----------------split-----------------
+# ----------------- split -----------------
 
 def build_recursive_splitter(config: SplitConfig):
     from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -353,7 +353,7 @@ def split_json_structure(path: Path, docs: List[Document], config: PreprocessCon
             out.append(d)
     return out
 
-# -----------------preprocess-----------------
+# ----------------- preprocess -----------------
 
 class Preprocessor:
     def __init__(
