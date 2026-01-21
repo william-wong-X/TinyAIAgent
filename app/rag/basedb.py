@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Callable
 
-EmbeddingFn = Callable[[List[str], List[List[float]]]]
+EmbeddingFn = Callable[[List[str]], List[List[float]]]
 
 @dataclass
 class SearchResult:

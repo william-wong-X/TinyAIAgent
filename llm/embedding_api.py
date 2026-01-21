@@ -10,15 +10,15 @@ from transformers import AutoTokenizer, AutoModel
 import uvicorn
 
 from utils.utils import get_dir
-from app.config import load_config
+from config.config import load_config
 
-# ====================== config ======================
+# ====================== Config ======================
 parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--config', type=str, default="./config/config.yaml", help="Config path")
 args = parser.parse_args()
 config = load_config(args.config)
 
-# ====================== embedding model ======================
+# ====================== Embedding Model ======================
 def last_token_pool(last_hidden_states: Tensor, attention_mask: Tensor):
     left_padding = (attention_mask[:, -1].sum() == attention_mask.shape[0])
     if left_padding:
@@ -107,7 +107,7 @@ class EmbeddingResponse(BaseModel):
     model: str
     usage: EmbeddingUsage
 
-# ====================== FastAPI app ======================
+# ====================== FastAPI App ======================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     model_path = get_dir(config.embedding.model_path)

@@ -11,6 +11,65 @@ embedding:
   model: "qwen3-wmbedding-0.6b"
   model_path: "llm/models/Qwen3-Embedding-0.6B"
 
+vectordb:
+  chroma:
+    collection_name: "document"
+    persist_directory: "data/vectorstores"
+
+preprocess:
+  loader:
+    pdf_mode: "page"
+    prefer_unstructured_for_office: false
+    recursive: true
+    only_supported: true
+
+  clean:
+    normalize_unicode_nfkc: true
+    remove_null_bytes: true
+    normalize_newlines: true
+    strip_lines: true
+    collapse_blank_lines: true
+    max_consecutive_blank_lines: 2
+    collapse_inline_spaces: true
+    dehyphenate_linebreaks: false
+
+  split:
+    chunk_size: 1000
+    chunk_overlap: 150
+    length_unit: "char"
+    tiktoken_model_name: null
+    tiktoken_encoding_name: "gpt2"
+    keep_separator: "end"
+    add_start_index: true
+    separators: null
+
+  structure:
+    enable_markdown_headers: true
+    markdown_headers_to_split_on:
+      - ["#", "h1"]
+      - ["##", "h2"]
+      - ["###", "h3"]
+      - ["####", "h4"]
+    markdown_strip_headers: true
+
+    enable_html_headers: true
+    html_headers_to_split_on:
+      - ["h1", "h1"]
+      - ["h2", "h2"]
+      - ["h3", "h3"]
+      - ["h4", "h4"]
+    html_return_each_element: false
+
+    enable_json_splitter: true
+    json_convert_lists: false
+
+sync:
+  kb_root: "data/docs"
+  manifest_path: "data/manifest/manifest.sqlite"
+  confirm_by_sha256_on_suspect: true
+  embed_batch: 128
+  dry_run: false
+
 rag:
   vectorstore_path: "data/vectorstores/chroma_db"
   top_k: 4

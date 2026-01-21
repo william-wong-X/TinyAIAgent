@@ -12,9 +12,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStream
 import uvicorn
 
 from utils.utils import get_dir
-from app.config import load_config
+from config.config import load_config
 
-# ====================== config ======================
+# ====================== Config ======================
 parser = argparse.ArgumentParser()    
 parser.add_argument('-c', '--config', type=str, default="./config/config.yaml", help="Config path")
 args = parser.parse_args()
@@ -155,7 +155,7 @@ class ChatCompletionResponse(BaseModel):
     choices: List[Choice]
     usage: Usage = Usage()
 
-# ====================== FastAPI app ======================
+# ====================== FastAPI App ======================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     model_path = get_dir(config.llm.model_path)
@@ -183,7 +183,7 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
     
     messages=[{"role": m.role, "content": m.content} for m in body.messages]
 
-    # ============ 流式模式 ============
+    # ============ Stream Model ============
     if body.stream:
         def event_generator():
             chat_id = f"chatcmpl-{int(time.time())}"
@@ -239,7 +239,7 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-    # ============ 非流式模式 ============
+    # ============ Non-stream Model ============
     content = llm.generate(
         messages=messages,
         max_new_tokens=body.max_tokens,

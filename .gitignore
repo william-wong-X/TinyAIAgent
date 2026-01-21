@@ -22,3 +22,10 @@ llm/models/
 models/
 checkpoints/
 weights/
+
+# database
+data/manifest/*
+data/vectorstores/*
+
+# docs
+data/docs/*

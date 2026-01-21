@@ -17,7 +17,7 @@ SUPPORTED_EXTS = {
     ".json",
 }
 
-# ---------------- scan ---------------
+# ====================== Scan ======================
 
 def iter_files(inputs: Sequence[Union[str, Path]], *, recursive: bool = True) ->Iterator[Path]:
     for item in inputs:
@@ -41,7 +41,7 @@ def iter_supported_files(
             continue
         yield fp.resolve()
 
-# ---------------- signature ---------------
+# ====================== Signature ======================
 
 @dataclass
 class FileSig:
@@ -67,7 +67,7 @@ def sig_strong(path: Path) -> FileSig:
     st = path.stat()
     return FileSig(size=int(st.st_size), mtime=int(st.st_mtime), sha256=sha256_file(path))
 
-# ---------------- change detector ---------------
+# ====================== Change Detector ======================
 
 @dataclass
 class ChangeSet:

@@ -10,69 +10,13 @@ from typing import Any, Optional, Dict, Union, List, Tuple, Sequence, Iterator, 
 
 from langchain_core.documents import Document
 
+from config.config import PreprocessConfig, CleanConfig, SplitConfig
+
 @dataclass
 class Chunk:
     id: str
     text: str
     metadata: Dict[str, Any]
-
-# ----------------- config -----------------
-@dataclass
-class CleanConfig:
-    normalize_unicode_nfkc: bool = True
-    remove_null_bytes: bool = True
-    normalize_newlines: bool = True
-    strip_lines: bool = True
-    collapse_blank_lines: bool = True
-    max_consecutive_blank_lines: int = 2
-    collapse_inline_spaces: bool = True
-    dehyphenate_linebreaks: bool = False
-
-
-@dataclass
-class SplitConfig:
-    chunk_size: int = 1000
-    chunk_overlap: int = 150
-    length_unit: str = "char"
-    tiktoken_model_name: Optional[str] = None
-    tiktoken_encoding_name: str = "gpt2"
-    keep_separator: Union[bool, str] = "end"
-    add_start_index: bool = True
-    separators: Optional[List[str]] = None
-
-
-@dataclass
-class StructureSplitConfig:
-    enable_markdown_headers: bool = True
-    markdown_headers_to_split_on: List[Tuple[str, str]] = field(
-        default_factory=lambda: [("#", "h1"), ("##", "h2"), ("###", "h3"), ("####", "h4")]
-    )
-    markdown_strip_headers: bool = True
-    enable_html_headers: bool = True
-    html_headers_to_split_on: List[Tuple[str, str]] = field(
-        default_factory=lambda: [("h1", "h1"), ("h2", "h2"), ("h3", "h3"), ("h4", "h4")]
-    )
-    html_return_each_element: bool = False
-    enable_json_splitter: bool = True
-    json_convert_lists: bool = False
-
-
-@dataclass
-class LoaderConfig:
-    pdf_mode: str = "page"
-    prefer_unstructured_for_office: bool = False
-    recursive: bool = True
-    only_supported: bool = True
-
-
-@dataclass
-class PreprocessConfig:
-    loader: LoaderConfig = LoaderConfig()
-    clean: CleanConfig = CleanConfig()
-    split: SplitConfig = SplitConfig()
-    structure: StructureSplitConfig = StructureSplitConfig()
-
-# ----------------- config -----------------
 
 LoaderFn = Callable[[Path, PreprocessConfig], List[Document]]
 StructureSplitterFn = Callable[[Path, List[Document], PreprocessConfig], List[Document]]
@@ -107,7 +51,7 @@ def normalize_metadata(meta: Dict[str, Any], path: Path) -> Dict[str, Any]:
 
     return m
 
-# ----------------- scan -----------------
+# ====================== Scan ======================
 
 def iter_files(inputs: Sequence[Union[str, Path]], *, recursive: bool = True) -> Iterator[Path]:
     for item in inputs:
@@ -195,7 +139,7 @@ DEFAULT_LOADER_REGISTRY: Dict[str, LoaderFn] = {
     ".json": _load_json
 }
 
-# ----------------- clean -----------------
+# ====================== Clean ======================
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
@@ -236,7 +180,7 @@ def clean_documents(docs: Iterable[Document], config: CleanConfig) -> List[Docum
         out.append(Document(page_content=t, metadata=dict(d.metadata or {})))
     return out
 
-# ----------------- chinese -----------------
+# ====================== Chinese ======================
 
 DEFAULT_SEPARATORS_ZH_AWARE = [
     "\n\n",
@@ -252,7 +196,7 @@ DEFAULT_SEPARATORS_ZH_AWARE = [
     "",
 ]
 
-# ----------------- split -----------------
+# ====================== Split ======================
 
 def build_recursive_splitter(config: SplitConfig):
     from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -294,7 +238,7 @@ def split_markdown_structure(path: Path, docs: List[Document], config: Preproces
     from langchain_text_splitters import MarkdownHeaderTextSplitter
     md_cfg = config.structure
     splitter = MarkdownHeaderTextSplitter(
-        headers_to_split_on=md_cfg.html_headers_to_split_on, 
+        headers_to_split_on=md_cfg.markdown_headers_to_split_on, 
         strip_headers=md_cfg.markdown_strip_headers
     )
     out: List[Document] = []
@@ -353,7 +297,7 @@ def split_json_structure(path: Path, docs: List[Document], config: PreprocessCon
             out.append(d)
     return out
 
-# ----------------- preprocess -----------------
+# ====================== Preprocess ======================
 
 class Preprocessor:
     def __init__(

@@ -1,6 +1,6 @@
 from langchain_core.runnables import RunnableWithMessageHistory
 
-from app.config import AppConfig
+from config.config import AppConfig
 
 def chat_cli(config: AppConfig, chat_chain: RunnableWithMessageHistory, session_id: str="user"):
     print(f"可以开始对话，输入 /exit 或 /quit 退出。")

@@ -6,8 +6,8 @@ import uuid
 import chromadb
 from chromadb.api.models.Collection import Collection
 
-from basedb import VectorStore, SearchResult, EmbeddingFn
-from ..config import AppConfig
+from app.rag.basedb import VectorStore, SearchResult, EmbeddingFn
+from config.config import ChromaVectorDBConfig
 
 class ChromaVectorStore(VectorStore):
     def __init__(self,
@@ -94,9 +94,9 @@ class ChromaVectorStore(VectorStore):
     def close(self):
         return super().close()
 
-def create_vector_store(cfg: AppConfig, embedding_fn: EmbeddingFn) -> VectorStore:
+def create_vector_store(cfg: ChromaVectorDBConfig, embedding_fn: EmbeddingFn) -> VectorStore:
     return ChromaVectorStore(
-        collection_name=cfg["collection_name"],
-        persist_directory=cfg.get("persist_directory", "data/vectorstores"),
+        collection_name=cfg.collection_name,
+        persist_directory=cfg.persist_directory,
         embedding_fn=embedding_fn,
     )
