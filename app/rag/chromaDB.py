@@ -49,8 +49,8 @@ class ChromaVectorStore(VectorStore):
               query_embedding: Optional[List[float]] = None, 
               k: int = 5, 
               where: Optional[Dict[str, Any]] = None) -> List[SearchResult]:
-        if query_text is None:
-            if query_embedding is None:
+        if query_embedding is None:
+            if query_text is None:
                 raise ValueError("loss query_text or query_embedding")
             query_embedding = self.embedding_fn([query_text])[0]
         
@@ -86,7 +86,7 @@ class ChromaVectorStore(VectorStore):
         self.collection.delete(ids=ids, where=where)
 
     def count(self) -> int:
-        return self._collection.count()
+        return self.collection.count()
     
     def persist(self):
         return super().persist()

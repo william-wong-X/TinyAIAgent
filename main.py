@@ -1,6 +1,6 @@
 import argparse
 
-from config.config import AppConfig, load_config
+from config.config import load_config
 from app.agent import agent_run
 
 def main():

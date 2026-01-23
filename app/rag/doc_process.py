@@ -5,8 +5,8 @@ import json
 import hashlib
 import unicodedata
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Any, Optional, Dict, Union, List, Tuple, Sequence, Iterator, Callable, Iterable
+from dataclasses import dataclass
+from typing import Any, Optional, Dict, Union, List, Sequence, Iterator, Callable, Iterable
 
 from langchain_core.documents import Document
 
@@ -285,12 +285,16 @@ def split_json_structure(path: Path, docs: List[Document], config: PreprocessCon
                 out.append(d)
                 continue
         
+        clean_metadata = d.metadata.copy() if d.metadata else {}
+        if "_json_obj" in clean_metadata:
+            del clean_metadata["_json_obj"]
+
         try:
             parts = splitter.create_documents(
                 texts=[obj], 
                 convert_lists=json_cfg.json_convert_lists, 
                 ensure_ascii=False, 
-                metadatas=dict(d.metadata or {})
+                metadatas=[clean_metadata]
             )
             out.extend(parts)
         except Exception:

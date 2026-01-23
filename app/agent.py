@@ -3,7 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 
-from ..config.config import AppConfig
+from config.config import AppConfig
 from .model_client import create_llm
 from ui.cli import chat_cli
 

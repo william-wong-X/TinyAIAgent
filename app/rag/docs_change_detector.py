@@ -47,7 +47,7 @@ def iter_supported_files(
 class FileSig:
     size: int
     mtime: int
-    sha265: Optional[str] = None
+    sha256: Optional[str] = None
 
 def sha256_file(path: Path, *, chunk_bytes: int = 1024 * 1024) -> str:
     h = hashlib.sha256()

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import List, Optional
 import argparse
 
 from app.model_client import create_embedding
@@ -43,7 +41,7 @@ def sync_once(
             old_ids = db.get_chunk_ids(source)
             print(f"[MOD] {source} old_chunks={len(old_ids)} -> rebuild")
             if not config.dry_run and old_ids:
-                chroma.delete_by_ids(old_ids)
+                chroma.delete(old_ids)
             if not config.dry_run:
                 _build_and_upsert_one(
                     source=source, 
@@ -128,7 +126,7 @@ def main():
     pp_config = config.preprocess
     vdb_cfg = config.vectordb.chroma
 
-    embedding_fn = create_embedding(config)
+    embedding_fn = create_embedding(config).embed_documents
     chroma = create_vector_store(vdb_cfg, embedding_fn)
 
     sync_once(
