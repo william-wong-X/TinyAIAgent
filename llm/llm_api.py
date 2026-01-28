@@ -3,11 +3,13 @@ import argparse
 import torch
 import threading
 import json
+import re
+import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Union, Any
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextIteratorStreamer
 import uvicorn
 
@@ -56,6 +58,7 @@ class ChatLLM:
     def generate(
         self, 
         messages: List[dict], 
+        tools: Optional[List[dict]], 
         max_new_tokens: int = 32765,
         temperature: float = 0.7,
         top_p: float = 0.9,
@@ -64,12 +67,22 @@ class ChatLLM:
         if not isinstance(messages, list):
             messages = [messages]
 
-        text = self.tokenizer.apply_chat_template(
-            messages, 
-            tokenize=False, 
-            add_generation_prompt=True, 
-            enable_thinking=enable_thinking
-        )
+        try:
+            text = self.tokenizer.apply_chat_template(
+                messages, 
+                tools=tools,
+                tokenize=False, 
+                add_generation_prompt=True, 
+                enable_thinking=enable_thinking
+            )
+        except TypeError:
+            text = self.tokenizer.apply_chat_template(
+                messages, 
+                tokenize=False, 
+                add_generation_prompt=True, 
+                enable_thinking=enable_thinking
+            )
+
         model_input = self.tokenizer([text], return_tensors="pt").to(self.device)
 
         generated_ids = self.model.generate(
@@ -82,6 +95,12 @@ class ChatLLM:
         output_ids = generated_ids[0][len(model_input.input_ids[0]):].tolist()
 
         full_text = self.tokenizer.decode(output_ids, skip_special_tokens=False)
+
+        full_text = full_text.replace(self.tokenizer.eos_token, "")
+        for stop_token in ["<|im_end|>", "<|endoftext|>"]:
+            if full_text.endswith(stop_token):
+                full_text = full_text[:-len(stop_token)]
+
         return full_text.strip("\n")
     
     def stream_generate(
@@ -124,18 +143,35 @@ class ChatLLM:
             yield new_text
     
 # ====================== API Data Model (OpenAI) ======================
+class FunctionCall(BaseModel):
+    name: str
+    arguments: str
+
+class ToolCall(BaseModel):
+    id: str
+    type: str = "function"
+    function: FunctionCall
+
 class Message(BaseModel):
     role: str
-    content: str
+    content: Optional[str]
+    tool_calls: Optional[List[ToolCall]] = None
+
+class RequestMessage(BaseModel):
+    role: str
+    content: Optional[Union[str, List[Dict[str, Any]]]] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = None
 
 class ChatCompletionRequest(BaseModel):
     model: str = config.llm.model
-    messages: List[Message]
+    messages: List[RequestMessage]
     max_tokens: Optional[int] = 32765
     temperature: Optional[float] = 0.7
     top_p: Optional[float] = 0.9
     enable_thinking: Optional[bool] = True
     stream: Optional[bool] = True
+    tools: Optional[List[Dict[str, Any]]] = None
+    tool_choice: Optional[Union[str, List[Dict[str, Any]]]] = None
 
 class Choice(BaseModel):
     index: int = 0
@@ -154,6 +190,34 @@ class ChatCompletionResponse(BaseModel):
     model: str = config.llm.model
     choices: List[Choice]
     usage: Usage = Usage()
+
+# ====================== Tool Parsing Logic ======================
+def extract_tool_calls(content: str) -> Optional[List[ToolCall]]:
+    if not content:
+        return None
+    
+    pattern = r"<tool_call>(.*?)</tool_call>"
+    matches = re.findall(pattern, content, re.DOTALL)
+
+    if not matches:
+        return None
+    
+    tool_calls_list = []
+    for json_str in matches:
+        try:
+            tool_data = json.loads(json_str.strip())
+            tool_call = ToolCall(
+                id=f"call_{uuid.uuid4().hex[:8]}", 
+                type="function", 
+                function=FunctionCall(
+                    name=tool_data.get("name"), 
+                    arguments=json.dumps(tool_data.get("arguments", {}))
+                )
+            )
+            tool_calls_list.append(tool_call)
+        except Exception as e:
+            print(f"JSON parsing error: {e} \nContent: {json_str}")
+    return tool_calls_list if tool_calls_list else None
 
 # ====================== FastAPI App ======================
 @asynccontextmanager
@@ -181,21 +245,27 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
     if llm is None:
         raise HTTPException(status_code=503, detail="Model Unload")
     
-    messages=[{"role": m.role, "content": m.content} for m in body.messages]
-
+    formatted_messages=[]
+    for m in body.messages:
+        msg = {"role": m.role, "content": m.content}
+        if m.tool_calls:
+            msg["tool_calls"] = m.tool_calls
+        formatted_messages.append(msg)
+    
+    is_streaming = body.stream and (not body.tools)
     # ============ Stream Model ============
-    if body.stream:
+    if is_streaming:
         def event_generator():
             chat_id = f"chatcmpl-{int(time.time())}"
             created = int(time.time())
             first_chunk = True
 
             for text in llm.stream_generate(
-                messages=messages,
-                max_new_tokens=body.max_tokens,
-                temperature=body.temperature,
-                top_p=body.top_p,
-                enable_thinking=body.enable_thinking,
+                messages=formatted_messages, 
+                max_new_tokens=body.max_tokens, 
+                temperature=body.temperature, 
+                top_p=body.top_p, 
+                enable_thinking=body.enable_thinking
             ):
 
                 if not text:
@@ -208,31 +278,31 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
 
                 chunk = {
                     "id": chat_id,
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": body.model,
+                    "object": "chat.completion.chunk", 
+                    "created": created, 
+                    "model": body.model, 
                     "choices": [
                         {
-                            "index": 0,
-                            "delta": delta,
-                            "finish_reason": None,
+                            "index": 0, 
+                            "delta": delta, 
+                            "finish_reason": None
                         }
-                    ],
+                    ]
                 }
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
             final_chunk = {
-                "id": chat_id,
-                "object": "chat.completion.chunk",
-                "created": created,
-                "model": body.model,
+                "id": chat_id, 
+                "object": "chat.completion.chunk", 
+                "created": created, 
+                "model": body.model, 
                 "choices": [
                     {
-                        "index": 0,
-                        "delta": {},
-                        "finish_reason": "stop",
+                        "index": 0, 
+                        "delta": {}, 
+                        "finish_reason": "stop"
                     }
-                ],
+                ]
             }
             yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
@@ -241,18 +311,36 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
 
     # ============ Non-stream Model ============
     content = llm.generate(
-        messages=messages,
-        max_new_tokens=body.max_tokens,
-        temperature=body.temperature,
-        top_p=body.top_p,
-        enable_thinking=body.enable_thinking,
+        messages=formatted_messages, 
+        tools=body.tools, 
+        max_new_tokens=body.max_tokens, 
+        temperature=body.temperature, 
+        top_p=body.top_p, 
+        enable_thinking=body.enable_thinking
     )
 
+    tool_calls = extract_tool_calls(content)
+
+    if tool_calls:
+        response_message = Message(
+            role="assistant", 
+            content=content, 
+            tool_calls=tool_calls
+        )
+        finish_reason = "tool_calls"
+    else:
+        response_message = Message(
+            role="assistant", 
+            content=content
+        )
+        finish_reason = "stop"
+
     return ChatCompletionResponse(
-        model=body.model,
+        model=body.model, 
         choices=[
             Choice(
-                message=Message(role="assistant", content=content)
+                message=response_message,
+                finish_reason=finish_reason
             )
         ]
     )
