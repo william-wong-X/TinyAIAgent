@@ -1,7 +1,8 @@
 import argparse
 
 from config.config import load_config
-from app.agent import agent_run
+from app.agent import Agent
+from ui.cli import chat_cli
 
 def main():
     parser = argparse.ArgumentParser()
@@ -12,7 +13,9 @@ def main():
 
     config = load_config(args.config)
 
-    agent_run(config)
+    agent = Agent(config)
+
+    chat_cli(config, agent)
 
 if __name__ == "__main__":
     main()

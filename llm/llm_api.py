@@ -54,6 +54,29 @@ class ChatLLM:
             print(f"模型加载失败: {e}")
             raise
     
+    def _apply_template(self, messages, tools, enable_thinking):
+        try:
+            return self.tokenizer.apply_chat_template(
+                messages, tools=tools, tokenize=False, 
+                add_generation_prompt=True, enable_thinking=enable_thinking
+            )
+        except TypeError:
+            pass
+
+        try:
+            return self.tokenizer.apply_chat_template(
+                messages, tools=tools, tokenize=False, 
+                add_generation_prompt=True
+            )
+        except TypeError:
+            pass
+
+        print("Warning: Tokenizer does not support 'tools' or 'enable_thinking'. Fallback to basic template.")
+        return self.tokenizer.apply_chat_template(
+            messages, tokenize=False, 
+            add_generation_prompt=True
+        )
+
     @torch.no_grad()
     def generate(
         self, 
@@ -67,21 +90,7 @@ class ChatLLM:
         if not isinstance(messages, list):
             messages = [messages]
 
-        try:
-            text = self.tokenizer.apply_chat_template(
-                messages, 
-                tools=tools,
-                tokenize=False, 
-                add_generation_prompt=True, 
-                enable_thinking=enable_thinking
-            )
-        except TypeError:
-            text = self.tokenizer.apply_chat_template(
-                messages, 
-                tokenize=False, 
-                add_generation_prompt=True, 
-                enable_thinking=enable_thinking
-            )
+        text = self._apply_template(messages, tools, enable_thinking)
 
         model_input = self.tokenizer([text], return_tensors="pt").to(self.device)
 
@@ -106,17 +115,14 @@ class ChatLLM:
     def stream_generate(
             self,
             messages: List[dict],
+            tools: Optional[List[dict]] = None, 
             max_new_tokens: int = 32765,
             temperature: float = 0.7,
             top_p: float = 0.9,
             enable_thinking: bool = True,
     ):
-        text = self.tokenizer.apply_chat_template(
-            messages, 
-            tokenize=False, 
-            add_generation_prompt=True, 
-            enable_thinking=enable_thinking
-        )
+        text = self._apply_template(messages, tools, enable_thinking)
+
         model_input = self.tokenizer([text], return_tensors="pt").to(self.device)
 
         streamer = TextIteratorStreamer(
@@ -140,6 +146,14 @@ class ChatLLM:
         for new_text in streamer:
             if not new_text:
                 continue
+
+            for stop_token in ["<|im_end|>", "<|endoftext|>"]:
+                if stop_token in new_text:
+                    new_text = new_text.replace(stop_token, "")
+            
+            if not new_text:
+                continue
+
             yield new_text
     
 # ====================== API Data Model (OpenAI) ======================
@@ -168,8 +182,8 @@ class ChatCompletionRequest(BaseModel):
     max_tokens: Optional[int] = 32765
     temperature: Optional[float] = 0.7
     top_p: Optional[float] = 0.9
-    enable_thinking: Optional[bool] = True
-    stream: Optional[bool] = True
+    enable_thinking: Optional[bool] = config.llm.enable_thinking
+    stream: Optional[bool] = config.llm.streaming
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, List[Dict[str, Any]]]] = None
 
@@ -200,7 +214,7 @@ def extract_tool_calls(content: str) -> Optional[List[ToolCall]]:
     matches = re.findall(pattern, content, re.DOTALL)
 
     if not matches:
-        return None
+        return None, None
     
     tool_calls_list = []
     for json_str in matches:
@@ -217,7 +231,12 @@ def extract_tool_calls(content: str) -> Optional[List[ToolCall]]:
             tool_calls_list.append(tool_call)
         except Exception as e:
             print(f"JSON parsing error: {e} \nContent: {json_str}")
-    return tool_calls_list if tool_calls_list else None
+
+    cleaned_content = re.sub(pattern, "", content, flags=re.DOTALL).strip()
+    if not cleaned_content:
+        cleaned_content = None
+
+    return cleaned_content, tool_calls_list
 
 # ====================== FastAPI App ======================
 @asynccontextmanager
@@ -252,57 +271,201 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
             msg["tool_calls"] = m.tool_calls
         formatted_messages.append(msg)
     
-    is_streaming = body.stream and (not body.tools)
+    is_streaming = body.stream
     # ============ Stream Model ============
     if is_streaming:
         def event_generator():
             chat_id = f"chatcmpl-{int(time.time())}"
             created = int(time.time())
-            first_chunk = True
+            
+            first_chunk = {
+                "id": chat_id, 
+                "object": "chat.completion.chunk", 
+                "created": created, 
+                "model": body.model,
+                "choices": [
+                    {
+                        "index": 0, 
+                        "delta": {"role": "assistant"}, 
+                        "finish_reason": None
+                    }
+                ]
+            }
+            yield f"data: {json.dumps(first_chunk, ensure_ascii=False)}\n\n"
 
-            for text in llm.stream_generate(
+            buffer = ""
+            tool_mode = False
+
+            generator = llm.stream_generate(
                 messages=formatted_messages, 
+                tools=body.tools, 
                 max_new_tokens=body.max_tokens, 
                 temperature=body.temperature, 
                 top_p=body.top_p, 
                 enable_thinking=body.enable_thinking
-            ):
+            )
 
-                if not text:
+            for new_text in generator:
+                buffer += new_text
+
+                if "<tool_call>" in buffer and not tool_mode:
+                    pre_tool_content, tool_part = buffer.split("<tool_call>", 1)
+
+                    if pre_tool_content:
+                        content_chunk = {
+                            "id": chat_id, 
+                            "object": "chat.completion.chunk", 
+                            "created": created, 
+                            "model": body.model,
+                            "choices": [
+                                {
+                                    "index": 0, 
+                                    "delta": {"content": pre_tool_content}, 
+                                    "finish_reason": None
+                                }
+                            ]
+                        }
+                        yield f"data: {json.dumps(content_chunk, ensure_ascii=False)}\n\n"
+                    buffer = tool_part 
+                    tool_mode = True
                     continue
 
-                delta = {"content": text}
-                if first_chunk:
-                    delta["role"] = "assistant"
-                    first_chunk = False
+                if tool_mode:
+                    if "</tool_call>" in buffer:
+                        json_str, remaining_post_tool = buffer.split("</tool_call>", 1)
 
-                chunk = {
-                    "id": chat_id,
-                    "object": "chat.completion.chunk", 
-                    "created": created, 
-                    "model": body.model, 
-                    "choices": [
-                        {
-                            "index": 0, 
-                            "delta": delta, 
-                            "finish_reason": None
+                        try:
+                            tool_data = json.loads(json_str.strip())
+                            tool_call_id = f"call_{uuid.uuid4().hex[:8]}"
+
+                            tool_chunk_start = {
+                                "id": chat_id, "object": "chat.completion.chunk", "created": created, "model": body.model,
+                                "choices": [
+                                    {
+                                        "index": 0, 
+                                        "delta": {
+                                            "tool_calls": [
+                                                {
+                                                    "index": 0,
+                                                    "id": tool_call_id,
+                                                    "type": "function",
+                                                    "function": {"name": tool_data.get("name"), "arguments": ""}
+                                            }
+                                        ]
+                                        }, 
+                                        "finish_reason": None
+                                    }
+                                ]
+                            }
+                            yield f"data: {json.dumps(tool_chunk_start, ensure_ascii=False)}\n\n"
+
+                            args_str = json.dumps(tool_data.get("arguments", {}))
+                            tool_chunk_args = {
+                                "id": chat_id, 
+                                "object": "chat.completion.chunk", 
+                                "created": created, 
+                                "model": body.model,
+                                "choices": [
+                                    {
+                                        "index": 0, 
+                                        "delta": {
+                                            "tool_calls": [{"index": 0, "function": {"arguments": args_str}}]
+                                        }, 
+                                        "finish_reason": None
+                                    }
+                                ]
+                            }
+                            yield f"data: {json.dumps(tool_chunk_args, ensure_ascii=False)}\n\n"
+
+                        except Exception as e:
+                            print(f"Stream Tool Parse Error: {e}")
+                            error_chunk = {
+                                "id": chat_id, 
+                                "object": "chat.completion.chunk", 
+                                "created": created, 
+                                "model": body.model,
+                                "choices": [
+                                    {
+                                        "index": 0, 
+                                        "delta": {"content": f"<tool_call>{json_str}</tool_call>"}, 
+                                        "finish_reason": None
+                                    }
+                                ]
+                            }
+                            yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+                        buffer = remaining_post_tool
+                        tool_mode = False
+                    else:
+                        pass
+                else:
+                    if "<" in buffer:
+                        last_bracket = buffer.rfind("<")
+                        if last_bracket != -1 and len(buffer) - last_bracket < 12:
+                            to_send = buffer[:last_bracket]
+                            buffer = buffer[last_bracket:]
+                            if to_send:
+                                chunk = {
+                                   "id": chat_id, 
+                                   "object": "chat.completion.chunk", 
+                                   "created": created, 
+                                   "model": body.model,
+                                   "choices": [
+                                       {
+                                           "index": 0, 
+                                           "delta": {"content": to_send}, 
+                                           "finish_reason": None
+                                        }
+                                    ]
+                                }
+                                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                        else:
+                            chunk = {
+                               "id": chat_id, 
+                               "object": "chat.completion.chunk", 
+                               "created": created, 
+                               "model": body.model,
+                               "choices": [
+                                   {
+                                       "index": 0, 
+                                       "delta": {"content": buffer}, 
+                                       "finish_reason": None
+                                    }
+                                ]
+                            }
+                            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                            buffer = ""
+                    else:
+                        chunk = {
+                            "id": chat_id, 
+                            "object": "chat.completion.chunk", 
+                            "created": created, 
+                            "model": body.model,
+                            "choices": [
+                                {
+                                    "index": 0, 
+                                    "delta": {"content": buffer}, 
+                                    "finish_reason": None
+                                }
+                            ]
                         }
-                    ]
+                        yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                        buffer = ""
+
+            if buffer and not tool_mode:
+                chunk = {
+                    "id": chat_id, "object": "chat.completion.chunk", "created": created, "model": body.model,
+                    "choices": [{"index": 0, "delta": {"content": buffer}, "finish_reason": None}]
                 }
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
 
+            finish_reason = "tool_calls" if (tool_mode is False and body.tools and "tool_calls" in str(first_chunk)) else "stop"
+            
             final_chunk = {
                 "id": chat_id, 
                 "object": "chat.completion.chunk", 
                 "created": created, 
-                "model": body.model, 
-                "choices": [
-                    {
-                        "index": 0, 
-                        "delta": {}, 
-                        "finish_reason": "stop"
-                    }
-                ]
+                "model": body.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
             }
             yield f"data: {json.dumps(final_chunk, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
@@ -319,12 +482,12 @@ async def chat_completions(request: Request, body: ChatCompletionRequest):
         enable_thinking=body.enable_thinking
     )
 
-    tool_calls = extract_tool_calls(content)
+    cleaned_content, tool_calls = extract_tool_calls(content)
 
     if tool_calls:
         response_message = Message(
             role="assistant", 
-            content=content, 
+            content=cleaned_content, 
             tool_calls=tool_calls
         )
         finish_reason = "tool_calls"
