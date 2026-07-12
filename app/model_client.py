@@ -17,6 +17,21 @@ def create_llm(config: AppConfig):
         },
     )
 
+# vllm
+# def create_llm(config: AppConfig):
+#     return ChatOpenAI(
+#         api_key=os.environ["OPENAI_API_KEY"], 
+#         base_url=config.llm.base_url, 
+#         model=config.llm.model, 
+#         temperature=config.llm.temperature, 
+#         streaming=config.llm.streaming,
+#         extra_body={
+#             "chat_template_kwargs": {
+#                 "enable_thinking": config.llm.enable_thinking
+#             }
+#         },
+#     )
+
 def create_embedding(config: AppConfig):
     return OpenAIEmbeddings(
         api_key=os.environ["OPENAI_API_KEY"], 

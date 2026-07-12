@@ -21,7 +21,7 @@ class LLMConfig:
 @dataclass
 class EmbeddingConfig:
     base_url: str = "http://localhost:8001/v1"
-    model: str = "qwen3-wmbedding-0.6b"
+    model: str = "qwen3-embedding-0.6b"
     model_path: str = "llm/models/Qwen3-Embedding-0.6B"
 # ====================== Model ======================
 

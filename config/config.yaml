@@ -8,7 +8,7 @@ llm:
 
 embedding:
   base_url: "http://localhost:8001/v1"
-  model: "qwen3-wmbedding-0.6b"
+  model: "qwen3-embedding-0.6b"
   model_path: "llm/models/Qwen3-Embedding-0.6B"
 
 vectordb:

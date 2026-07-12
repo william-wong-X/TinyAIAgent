@@ -89,7 +89,7 @@ class EmbeddingModel:
     
 # ====================== API Data Model (OpenAI) ======================
 class EmbeddingRequest(BaseModel):
-    model: str = Field(default_factory=lambda: getattr(config.embedding, "model", "qwen3-wmbedding-0.6b"))
+    model: str = Field(default_factory=lambda: getattr(config.embedding, "model", "qwen3-embedding-0.6b"))
     input: Union[str, List[str]]
 
 class EmbeddingData(BaseModel):

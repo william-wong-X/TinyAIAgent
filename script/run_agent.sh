@@ -26,7 +26,7 @@ start_service() {
 start_service "python3 -m llm.llm_api" "llm_api.log" "pids/llm.pid" "LLM API"
 start_service "python3 -m llm.embedding_api" "embedding.log" "pids/embedding.pid" "Embedding API"
 
-echo "Waiting for Embedding API to start..."
+echo "Waiting for LLM API to start..."
 sleep 10
 
 python3 main.py

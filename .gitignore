@@ -29,3 +29,6 @@ data/vectorstores/*
 
 # docs
 data/docs/*
+
+# AI_Agent
+AGENT.md
