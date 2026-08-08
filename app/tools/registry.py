@@ -5,6 +5,8 @@ from config.config import AppConfig
 
 from app.rag.rag_service import create_rag_service
 from .rag_tool import RAGSearchTool
+from .file_tool import FileReadTool
+from .write_tool import FileWriteTool
 
 def create_tools(config: AppConfig) -> List[BaseTool]:
     tools = []
@@ -14,5 +16,11 @@ def create_tools(config: AppConfig) -> List[BaseTool]:
     rag_service = create_rag_service(config, db_cfg)
     rag_tool = RAGSearchTool(rag_service)
     tools.append(rag_tool)
+
+    # file read
+    tools.append(FileReadTool())
+
+    # file write
+    tools.append(FileWriteTool())
 
     return tools
