@@ -20,6 +20,8 @@ Three processes cooperate at runtime:
 *   **Graph-based Agent**: LangGraph manages agent state and cyclic tool execution.
 *   **RAG Ready**: incremental document sync into a Chroma vector store, queried through the `rag_search` tool.
 *   **File Tools**: `read_file` reads any local file (pdf/txt/md/html/docx/ppt/csv/json...), `write_file` writes text files inside the project directory.
+*   **Web Fetch**: `fetch_url` fetches a web page by URL and returns its title and main text content.
+*   **Terminal**: `run_command` executes shell commands with full privileges (timeout and output cap enforced).
 *   **Modular & Extensible**: add new tools in `app/tools/` and register them in `app/tools/registry.py`.
 
 ## Getting Started
@@ -66,6 +68,8 @@ Stop all background services with `script/stop_all.sh`. Individual services can 
 *   **`rag_search`** — retrieve relevant context from the knowledge base.
 *   **`read_file`** — read any local file and return its text (with page/character limits).
 *   **`write_file`** — write text to a file inside the project directory (create/overwrite/append).
+*   **`fetch_url`** — fetch an http(s) web page and return its title and main text content.
+*   **`run_command`** — execute a shell command and return its output with the exit code (with timeout and output cap).
 
 ## Extension Guide
 

@@ -20,6 +20,8 @@
 *   **图结构 Agent**: 使用 LangGraph 管理 Agent 状态与循环工具执行。
 *   **RAG 能力**: 文档增量同步进 Chroma 向量库，通过 `rag_search` 工具进行知识库问答。
 *   **文件工具**: `read_file` 读取任意本地文件（pdf/txt/md/html/docx/ppt/csv/json 等），`write_file` 在项目目录内写入文本文件。
+*   **网页抓取**: `fetch_url` 通过 URL 抓取网页并返回标题与正文文本。
+*   **终端执行**: `run_command` 以完全权限执行 shell 命令（带超时与输出上限兜底）。
 *   **易于扩展**: 在 `app/tools/` 下定义新工具，并在 `app/tools/registry.py` 中注册即可。
 
 ## 快速开始
@@ -66,6 +68,8 @@ script/build_rag_docs.sh
 *   **`rag_search`** — 从知识库检索相关上下文。
 *   **`read_file`** — 读取任意本地文件并返回文本（支持页数/字符数限制）。
 *   **`write_file`** — 在项目目录内写入文本文件（创建/覆盖/追加）。
+*   **`fetch_url`** — 抓取 http(s) 网页并返回标题与正文文本。
+*   **`run_command`** — 执行 shell 命令并返回输出与退出码（带超时与输出上限）。
 
 ## 扩展指南
 

@@ -7,6 +7,8 @@ from app.rag.rag_service import create_rag_service
 from .rag_tool import RAGSearchTool
 from .file_tool import FileReadTool
 from .write_tool import FileWriteTool
+from .fetch_tool import FetchUrlTool
+from .terminal_tool import TerminalTool
 
 def create_tools(config: AppConfig) -> List[BaseTool]:
     tools = []
@@ -22,5 +24,11 @@ def create_tools(config: AppConfig) -> List[BaseTool]:
 
     # file write
     tools.append(FileWriteTool())
+
+    # fetch url
+    tools.append(FetchUrlTool())
+
+    # terminal
+    tools.append(TerminalTool())
 
     return tools
